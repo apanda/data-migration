@@ -3,7 +3,7 @@ use iou::*;
 use libiouring as iou;
 use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
-use std::ptr::{null, null_mut};
+use std::ptr::{null_mut};
 fn main() -> std::io::Result<()> {
     const QDEPTH: u32 = 32;
     let connect = TcpListener::bind("127.0.0.1:8989")?;
@@ -14,7 +14,7 @@ fn main() -> std::io::Result<()> {
         io_uring_queue_init(QDEPTH, &mut ring, 0);
         let entry = io_uring_get_sqe(&mut ring).unwrap();
         io_uring_prep_multishot_accept(entry, cfd, null_mut(), null_mut(), 0);
-        (*entry).user_data = 22;
+        set_sqe_data(entry, 22);
         let out = io_uring_submit(&mut ring);
         println!("Wait finished, got {}", out);
         let mut cqe: *mut io_uring_cqe = null_mut();
@@ -23,8 +23,8 @@ fn main() -> std::io::Result<()> {
         println!(
             "Wait finished, got {}, {}, {}",
             out,
-            (*cqe).user_data,
-            (*cqe2).user_data
+            get_cqe_data(&*cqe),
+            get_cqe_data(&*cqe2)
         );
     };
     Ok(())
