@@ -3,7 +3,7 @@ use iou::*;
 use libiouring as iou;
 use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
-use std::ptr::{null_mut};
+use std::ptr::null_mut;
 fn main() -> std::io::Result<()> {
     const QDEPTH: u32 = 32;
     let connect = TcpListener::bind("127.0.0.1:8989")?;

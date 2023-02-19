@@ -65,7 +65,7 @@ pub unsafe fn io_uring_prep_accept(
     flags: u32,
 ) {
     io_uring_prep_rw(IORING_OP_ACCEPT, sqe, fd, addr as usize, 0, len as u64);
-    (*sqe).__bindgen_anon_3.accept_flags = flags;
+    sqe.__bindgen_anon_3.accept_flags = flags;
 }
 
 pub unsafe fn io_uring_prep_multishot_accept(
@@ -76,7 +76,7 @@ pub unsafe fn io_uring_prep_multishot_accept(
     flags: u32,
 ) {
     io_uring_prep_accept(sqe, fd, addr, len, flags);
-    sqe.ioprio = sqe.ioprio | (IORING_ACCEPT_MULTISHOT as u16);
+    sqe.ioprio |= IORING_ACCEPT_MULTISHOT as u16;
 }
 
 /// Set SQE data, this shows up in the corresponding CQE allowing
