@@ -1,0 +1,12 @@
+[package]
+name = "libiouring-rs"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+
+[dependencies]
+libc = { version = "0.2" }
+
+[build-dependencies]
+bindgen = { version = "0.64" }
