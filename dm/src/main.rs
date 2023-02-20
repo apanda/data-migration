@@ -17,9 +17,6 @@ fn main() -> std::io::Result<()> {
         set_sqe_data(entry, 22);
         let out = io_uring_submit(&mut ring);
         println!("Wait finished, got {}", out);
-        // let mut cqe: *mut io_uring_cqe = null_mut();
-        // let out = __io_uring_get_cqe(&mut ring, &mut cqe, 0, 2, null_mut());
-        // let cqe2 = cqe.offset(1);
         let cqes = io_uring_wait_cqe_nr(&mut ring, 2).unwrap().unwrap();
         println!(
             "Wait finished, got {}, {}, {}",
@@ -27,7 +24,7 @@ fn main() -> std::io::Result<()> {
             get_cqe_data(cqes.peek(0).unwrap()),
             get_cqe_data(cqes.peek(1).unwrap())
         );
-        io_uring_cq_advance(&mut ring, 2)
+        drop(cqes);
     };
     Ok(())
 }
