@@ -1,21 +1,35 @@
-#![feature(atomic_from_mut)]
-#![feature(let_chains)]
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
 
-use std::ptr::{null_mut, NonNull};
-use std::sync::atomic::{AtomicU32, Ordering};
+use super::*;
 
-include! {concat!(env!("OUT_DIR"), "/iouring-sys.rs")}
-
-mod cqe;
-pub use cqe::*;
-mod sqe;
-pub use sqe::*;
-
-
-
+/// Return a SQE from `ring` or `None` if no empty SQEs are
+/// available.
+///
+/// # Safety
+/// We assume that `ring` is correctly initialized, and is only
+/// accessible from the current thread.
+pub unsafe fn io_uring_get_sqe(ring: &mut io_uring) -> std::option::Option<&mut io_uring_sqe> {
+    let sq = &mut ring.sq;
+    let next = sq.sqe_tail + 1;
+    let shift = if (ring.flags & IORING_SETUP_SQE128) != 0 {
+        1
+    } else {
+        0
+    };
+    // Sigh nightly only
+    let skhead = AtomicU32::from_mut(&mut *sq.khead);
+    let head = if (ring.flags & IORING_SETUP_SQPOLL) == 0 {
+        skhead.load(Ordering::Relaxed)
+    } else {
+        skhead.load(Ordering::Acquire)
+    };
+    if next - head <= sq.ring_entries {
+        let current = sq.sqe_tail;
+        sq.sqe_tail = next;
+        Some(&mut *(sq.sqes.offset(((current & sq.ring_mask) << shift) as isize)))
+    } else {
+        None
+    }
+}
 
 unsafe fn io_uring_prep_rw(
     op: io_uring_op,
@@ -41,6 +55,11 @@ unsafe fn io_uring_prep_rw(
     t.__pad2[0] = 0;
 }
 
+/// Prepar an accept requrest in the given SQE.
+/// 
+/// # Safety
+/// We do not validate the `addr` and `len` fields,
+/// but they must be `null` or point to valid memory.
 pub unsafe fn io_uring_prep_accept(
     sqe: &mut io_uring_sqe,
     fd: i32,
