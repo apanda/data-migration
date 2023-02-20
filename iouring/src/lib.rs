@@ -4,6 +4,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+use std::marker::PhantomPinned;
 use std::ptr::{null_mut, NonNull};
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -14,67 +15,68 @@ pub use cqe::*;
 mod sqe;
 pub use sqe::*;
 
+// let mut ring: io_uring = Default::default();
+// // Initialize io_uring, set things when necessary.
+// unsafe {
+//     io_uring_queue_init(QDEPTH, &mut ring, 0);
 
-
-
-unsafe fn io_uring_prep_rw(
-    op: io_uring_op,
-    sqe: &mut io_uring_sqe,
-    fd: i32,
-    addr: usize,
-    len: u32,
-    offset: u64,
-) {
-    sqe.opcode = (op & 0xff) as u8;
-    sqe.flags = 0;
-    sqe.ioprio = 0;
-    sqe.fd = fd;
-    sqe.__bindgen_anon_1.off = offset;
-    sqe.__bindgen_anon_2.addr = addr as u64;
-    sqe.len = len;
-    sqe.__bindgen_anon_3.rw_flags = 0;
-    sqe.__bindgen_anon_4.buf_index = 0;
-    sqe.personality = 0;
-    sqe.__bindgen_anon_5.file_index = 0;
-    let t = sqe.__bindgen_anon_6.__bindgen_anon_1.as_mut();
-    t.addr3 = 0;
-    t.__pad2[0] = 0;
+pub struct IoUring {
+    pub(crate) ring: io_uring,
+    _pin: PhantomPinned,
 }
 
-pub unsafe fn io_uring_prep_accept(
-    sqe: &mut io_uring_sqe,
-    fd: i32,
-    addr: *mut libc::sockaddr,
-    len: *mut libc::socklen_t,
-    flags: u32,
-) {
-    io_uring_prep_rw(IORING_OP_ACCEPT, sqe, fd, addr as usize, 0, len as u64);
-    sqe.__bindgen_anon_3.accept_flags = flags;
-}
+impl IoUring {
+    pub fn init(depth: isize) -> IoUring {
+        let mut r = IoUring {
+            ring: Default::default(),
+            _pin: Default::default(),
+        };
+        unsafe { io_uring_queue_init(depth as u32, &mut r.ring, 0) };
+        r
+    }
 
-pub unsafe fn io_uring_prep_multishot_accept(
-    sqe: &mut io_uring_sqe,
-    fd: i32,
-    addr: *mut libc::sockaddr,
-    len: *mut libc::socklen_t,
-    flags: u32,
-) {
-    io_uring_prep_accept(sqe, fd, addr, len, flags);
-    sqe.ioprio |= IORING_ACCEPT_MULTISHOT as u16;
-}
+    /// Submit pending SQEs.
+    ///
+    /// Returns number of submitted tasks.
+    pub fn submit(&mut self) -> i32 {
+        unsafe { io_uring_submit(&mut self.ring) }
+    }
 
-/// Set SQE data, this shows up in the corresponding CQE allowing
-/// returns to be correlated with requests.
-pub unsafe fn set_sqe_data(sqe: &mut io_uring_sqe, data: u64) {
-    sqe.user_data = data;
-}
+    /// Returns the number of SQEs that are ready but not
+    /// consumed by the kernel. Note, we do not mutate `ring`
+    /// but need to accept it this way to impose a barrier.
+    #[inline(always)]
+    pub fn io_uring_sq_ready(&mut self) -> u32 {
+        unsafe {
+            let kh = if self.ring.flags & IORING_SETUP_SQPOLL != 0 {
+                AtomicU32::from_mut(&mut *self.ring.sq.khead).load(Ordering::Acquire)
+            } else {
+                *self.ring.sq.khead
+            };
+            let tail = self.ring.sq.sqe_tail;
+            tail - kh
+        }
+    }
 
-/// Returns SQE data
-pub unsafe fn get_sqe_data(sqe: &io_uring_sqe) -> u64 {
-    sqe.user_data
-}
+    /// Returns the number of SQEs avaialble.
+    #[inline(always)]
+    pub fn io_uring_sq_available(&mut self) -> u32 {
+        self.ring.sq.ring_entries - self.io_uring_sq_ready()
+    }
 
-/// Returns CQE data
-pub unsafe fn get_cqe_data(cqe: &io_uring_cqe) -> u64 {
-    cqe.user_data
+    /// Return number of unconsumed CQEs.
+    #[inline(always)]
+    pub fn io_uring_cq_ready(&mut self) -> u32 {
+        let kt = unsafe { AtomicU32::from_mut(&mut *self.ring.cq.ktail).load(Ordering::Acquire) };
+        let kh: u32 = unsafe { *self.ring.cq.khead };
+        kt - kh
+    }
+
+    /// Return if there are overlow entries that need to be flushed
+    /// to CQ (indicating the application is not keeping up).
+    pub fn io_uring_cq_has_overflow(&mut self) -> bool {
+        let flag =
+            unsafe { AtomicU32::from_mut(&mut *self.ring.sq.kflags).load(Ordering::Relaxed) };
+        (flag & IORING_SQ_CQ_OVERFLOW) != 0
+    }
 }
