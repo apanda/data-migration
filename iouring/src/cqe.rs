@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use super::*;
 
 #[inline(always)]
@@ -15,7 +17,7 @@ unsafe fn io_uring_cqe_seen(ring: &mut io_uring) {
 
 /// A holder for a set of CQEs, potentially
 /// returned by peek or get.
-pub struct CqeJar {
+pub struct CqeJar<'a> {
     ring: NonNull<io_uring>,
     cqes: *mut io_uring_cqe,
     // First valid CQE, we need this because
@@ -24,26 +26,28 @@ pub struct CqeJar {
     begin: isize,
     // Bounds
     end: isize,
+    _life: PhantomData<&'a ()>
 }
 
-impl CqeJar {
-    /// Create a CQE holder.
+impl CqeJar<'_> {
+    /// Create a CqeJar.
     ///
     /// # Safety
     /// This function cannot check that the CQEs and length are
     /// correct, and instead assumes this is the case. This is
     /// of course unsafe, since it allows access to arbitrary
     /// memory.
-    pub(self) unsafe fn init(
+    pub(self) unsafe fn init<'a>(
         cqes: *mut io_uring_cqe,
         available: isize,
         ring: NonNull<io_uring>,
-    ) -> CqeJar {
+    ) -> CqeJar<'a> {
         CqeJar {
             ring,
             cqes,
             begin: 0,
             end: available,
+            _life: Default::default(),
         }
     }
 
@@ -90,13 +94,13 @@ impl CqeJar {
     }
 }
 
-impl Drop for CqeJar {
+impl Drop for CqeJar<'_> {
     fn drop(&mut self) {
         self.consume_all()
     }
 }
 
-pub unsafe fn io_uring_peek_cqe(ring: &mut IoUring) -> Result<Option<CqeJar>, std::io::Error> {
+pub unsafe fn io_uring_peek_cqe<'a>(ring: &'a mut IoUring) -> Result<Option<CqeJar<'a>>, std::io::Error> {
     let shift = if ring.ring.flags & IORING_SETUP_CQE32 != 0 {
         0
     } else {
@@ -142,13 +146,9 @@ pub unsafe fn io_uring_peek_cqe(ring: &mut IoUring) -> Result<Option<CqeJar>, st
     }
 }
 
-pub fn io_uring_wait_cqe_nr(ring: &mut IoUring, nr: u32) -> Result<Option<CqeJar>, std::io::Error> {
-    let p = unsafe { io_uring_peek_cqe(ring) };
-    if let Ok(Some(c)) = &p &&
-        c.available() >= nr as isize {
-            p
-    } else if p.is_err() {
-        p
+pub fn io_uring_wait_cqe_nr<'a>(ring: &'a mut IoUring, nr: u32) -> Result<Option<CqeJar<'a>>, std::io::Error> {
+    if ring.io_uring_cq_ready() >= nr {
+        unsafe {io_uring_peek_cqe(ring)}
     } else {
         let mut cqe_ptr:*mut io_uring_cqe = null_mut();
         let ret = unsafe {

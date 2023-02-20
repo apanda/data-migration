@@ -16,9 +16,8 @@ fn main() -> std::io::Result<()> {
     println!("Wait finished, got {}", out);
     let cqes = io_uring_wait_cqe_nr(&mut ring, 2).unwrap().unwrap();
     println!(
-        "Wait finished, got {}, {}, {}, {}",
+        "Wait finished, got {}, {}, {}",
         out,
-        ring.io_uring_cq_ready(),
         get_cqe_data(cqes.peek(0).unwrap()),
         get_cqe_data(cqes.peek(1).unwrap())
     );

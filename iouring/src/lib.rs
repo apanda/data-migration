@@ -15,11 +15,8 @@ pub use cqe::*;
 mod sqe;
 pub use sqe::*;
 
-// let mut ring: io_uring = Default::default();
-// // Initialize io_uring, set things when necessary.
-// unsafe {
-//     io_uring_queue_init(QDEPTH, &mut ring, 0);
-
+/// An IoUring structure, mostly so we can tell the
+/// Rust type system a bit more about our constraints.
 pub struct IoUring {
     pub(crate) ring: io_uring,
     _pin: PhantomPinned,
@@ -33,6 +30,13 @@ impl IoUring {
         };
         unsafe { io_uring_queue_init(depth as u32, &mut r.ring, 0) };
         r
+    }
+
+    /// Returns the underlying `io_uring` so one can directly
+    /// call liburing methods. This is unsafe for obvious reasons,
+    /// and is a way to get around my laziness.
+    pub unsafe fn get_ring_ptr(&mut self) -> *mut io_uring {
+        &mut self.ring
     }
 
     /// Submit pending SQEs.
