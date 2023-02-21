@@ -26,7 +26,7 @@ pub struct CqeJar<'a> {
     begin: isize,
     // Bounds
     end: isize,
-    _life: PhantomData<&'a ()>
+    _life: PhantomData<&'a ()>,
 }
 
 impl CqeJar<'_> {
@@ -100,7 +100,9 @@ impl Drop for CqeJar<'_> {
     }
 }
 
-pub unsafe fn io_uring_peek_cqe<'a>(ring: &'a mut IoUring) -> Result<Option<CqeJar<'a>>, std::io::Error> {
+pub unsafe fn io_uring_peek_cqe<'a>(
+    ring: &'a mut IoUring,
+) -> Result<Option<CqeJar<'a>>, std::io::Error> {
     let shift = if ring.ring.flags & IORING_SETUP_CQE32 != 0 {
         0
     } else {
@@ -146,16 +148,19 @@ pub unsafe fn io_uring_peek_cqe<'a>(ring: &'a mut IoUring) -> Result<Option<CqeJ
     }
 }
 
-pub fn io_uring_wait_cqe_nr<'a>(ring: &'a mut IoUring, nr: u32) -> Result<Option<CqeJar<'a>>, std::io::Error> {
+pub fn io_uring_wait_cqe_nr<'a>(
+    ring: &'a mut IoUring,
+    nr: u32,
+) -> Result<Option<CqeJar<'a>>, std::io::Error> {
     if ring.io_uring_cq_ready() >= nr {
-        unsafe {io_uring_peek_cqe(ring)}
+        unsafe { io_uring_peek_cqe(ring) }
     } else {
-        let mut cqe_ptr:*mut io_uring_cqe = null_mut();
-        let ret = unsafe {
-            __io_uring_get_cqe(&mut ring.ring, &mut cqe_ptr, 0, nr, null_mut())
-        };
+        let mut cqe_ptr: *mut io_uring_cqe = null_mut();
+        let ret = unsafe { __io_uring_get_cqe(&mut ring.ring, &mut cqe_ptr, 0, nr, null_mut()) };
         if ret == 0 {
-            Ok(Some(unsafe{CqeJar::init(cqe_ptr, nr as isize, (&mut ring.ring).into())}))
+            Ok(Some(unsafe {
+                CqeJar::init(cqe_ptr, nr as isize, (&mut ring.ring).into())
+            }))
         } else if ret < 0 {
             Err(std::io::Error::from_raw_os_error(-ret))
         } else {

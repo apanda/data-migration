@@ -83,4 +83,35 @@ impl IoUring {
             unsafe { AtomicU32::from_mut(&mut *self.ring.sq.kflags).load(Ordering::Relaxed) };
         (flag & IORING_SQ_CQ_OVERFLOW) != 0
     }
+
+    /// Return a SQE from `ring` or `None` if no empty SQEs are
+    /// available.
+    pub fn io_uring_get_sqe(&mut self) -> std::option::Option<Sqe> {
+        let sq = &mut self.ring.sq;
+        let next = sq.sqe_tail + 1;
+        let shift = if (self.ring.flags & IORING_SETUP_SQE128) != 0 {
+            1
+        } else {
+            0
+        };
+
+        // Sigh nightly only
+        unsafe {
+            let skhead = AtomicU32::from_mut(&mut *sq.khead);
+            let head = if (self.ring.flags & IORING_SETUP_SQPOLL) == 0 {
+                skhead.load(Ordering::Relaxed)
+            } else {
+                skhead.load(Ordering::Acquire)
+            };
+            if next - head <= sq.ring_entries {
+                let current = sq.sqe_tail;
+                sq.sqe_tail = next;
+                Some(Sqe::init(
+                    sq.sqes.offset(((current & sq.ring_mask) << shift) as isize),
+                ))
+            } else {
+                None
+            }
+        }
+    }
 }
