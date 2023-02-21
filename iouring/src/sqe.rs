@@ -25,6 +25,71 @@ impl Sqe<'_> {
         self.sqe
     }
 
+    /// Set SQE data, this shows up in the corresponding CQE allowing
+    /// returns to be correlated with requests.
+    pub fn set_sqe_data(self, data: u64) -> Self {
+        let sqe = unsafe { &mut (*self.sqe) };
+        sqe.user_data = data;
+        self
+    }
+
+    /// Returns user data from `sqe`.
+    pub fn get_sqe_data(&self) -> u64 {
+        let sqe = unsafe { &(*self.sqe) };
+        sqe.user_data
+    }
+
+    /// Link this SQE to the next SQE. This ensure that the
+    /// next SQE will not start until the current one completes
+    /// or errors out.
+    /// 
+    /// One can use this to form a chain of SQEs.
+    pub fn set_link(self) -> Self {
+        unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_IO_LINK_BIT };
+        self
+    }
+
+    /// Link this SQE to the next SQE, but do not execute
+    /// if the SQE errors out.
+    pub fn set_hard_link(self) -> Self {
+        unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_IO_HARDLINK_BIT };
+        self
+    }
+
+    /// Indicate that we know that this call will always require waiting,
+    /// and the kernel should always treat this as an async call.
+    pub fn set_async(self) -> Self {
+        unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_ASYNC_BIT };
+        self
+    }
+
+    /// Have this SQE act as a barrier: it will not execute until all previous
+    /// submissions have completed, and no later SQEs will execute until it
+    /// executes.
+    pub fn set_drain(self) -> Self {
+        unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_IO_DRAIN_BIT };
+        self
+    }
+
+    /// Do not generate a CQE if this request succeeds.
+    pub fn set_no_cqe(self) -> Self {
+        unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_CQE_SKIP_SUCCESS_BIT };
+        self
+    }
+
+    /// Use a buffer group for this SQE if available.
+    pub fn set_buffer_select(self) -> Self {
+        unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_BUFFER_SELECT_BIT };
+        self
+    }
+    
+    /// The FD is a previously registered file or direct FD, rather than a
+    /// normal file descriptor.
+    pub fn set_fixed_file(self) -> Self {
+        unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_FIXED_FILE_BIT };
+        self
+    }
+
     /// Initialize a SQE. This is only available
     /// to work around all the missing elements.
     ///
@@ -66,10 +131,11 @@ impl Sqe<'_> {
         addr: *mut libc::sockaddr,
         len: *mut libc::socklen_t,
         flags: u32,
-    ) {
+    ) -> Self {
         let sqe = unsafe { &mut (*self.sqe) };
         unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_ACCEPT, fd, addr as usize, 0, len as u64) };
         sqe.__bindgen_anon_3.accept_flags = flags;
+        self
     }
 
     pub fn io_uring_prep_multishot_accept(
@@ -78,11 +144,11 @@ impl Sqe<'_> {
         addr: *mut libc::sockaddr,
         len: *mut libc::socklen_t,
         flags: u32,
-    ) {
-        let sqe = unsafe { &mut (*self.sqe) };
-        unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_ACCEPT, fd, addr as usize, 0, len as u64) };
-        sqe.__bindgen_anon_3.accept_flags = flags;
+    ) -> Self {
+        let s = self.io_uring_prep_accept(fd, addr, len, flags);
+        let sqe = unsafe { &mut (*s.sqe) };
         sqe.ioprio |= IORING_ACCEPT_MULTISHOT as u16;
+        s
     }
 
     /// Prepare a splice command. Either `fd_in` or `fd_out` must be a pipe.
@@ -104,32 +170,27 @@ impl Sqe<'_> {
         off_out: i64,
         nbytes: u32,
         flags: u32,
-    ) {
+    ) -> Self {
         let sqe = unsafe { &mut (*self.sqe) };
         unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_SPLICE, fd_out, 0, nbytes, off_out as u64) };
         sqe.__bindgen_anon_3.splice_flags = flags;
         sqe.__bindgen_anon_5.splice_fd_in = fd_in;
         sqe.__bindgen_anon_2.splice_off_in = off_in as u64;
+        self 
     }
 
-    pub fn io_uring_prep_tee(self, fd_in: RawFd, fd_out: RawFd, nbytes: u32, flags: u32) {
+    pub fn io_uring_prep_tee(self, fd_in: RawFd, fd_out: RawFd, nbytes: u32, flags: u32) -> Self {
         let sqe = unsafe { &mut (*self.sqe) };
         unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_TEE, fd_out, 0, nbytes, 0) };
         sqe.__bindgen_anon_2.splice_off_in = 0;
         sqe.__bindgen_anon_5.splice_fd_in = fd_in;
         sqe.__bindgen_anon_3.splice_flags = flags;
+        self
     }
 
-    /// Set SQE data, this shows up in the corresponding CQE allowing
-    /// returns to be correlated with requests.
-    pub fn set_sqe_data(&mut self, data: u64) {
-        let sqe = unsafe { &mut (*self.sqe) };
-        sqe.user_data = data;
+    /// Indicate that we are done with the SQE.
+    pub fn finalize(self) {
+        drop(self);
     }
 
-    /// Returns user data from `sqe`.
-    pub fn get_sqe_data(&self) -> u64 {
-        let sqe = unsafe { &(*self.sqe) };
-        sqe.user_data
-    }
 }

@@ -9,9 +9,10 @@ fn main() -> std::io::Result<()> {
     let cfd = connect.as_raw_fd();
     let mut ring = IoUring::init(QDEPTH as isize);
     // Initialize io_uring, set things when necessary.
-    let mut entry = ring.io_uring_get_sqe().unwrap();
-    entry.set_sqe_data(22);
-    entry.io_uring_prep_multishot_accept(cfd, null_mut(), null_mut(), 0);
+    let entry = ring.io_uring_get_sqe().unwrap();
+    entry.io_uring_prep_multishot_accept(cfd, null_mut(), null_mut(), 0)
+         .set_sqe_data(22)
+         .finalize();
     let out = ring.submit();
     println!("Wait finished, got {}", out);
     let cqes = io_uring_wait_cqe_nr(&mut ring, 2).unwrap().unwrap();
