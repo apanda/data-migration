@@ -42,7 +42,7 @@ impl Sqe<'_> {
     /// Link this SQE to the next SQE. This ensure that the
     /// next SQE will not start until the current one completes
     /// or errors out.
-    /// 
+    ///
     /// One can use this to form a chain of SQEs.
     pub fn set_link(self) -> Self {
         unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_IO_LINK_BIT };
@@ -82,7 +82,7 @@ impl Sqe<'_> {
         unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_BUFFER_SELECT_BIT };
         self
     }
-    
+
     /// The FD is a previously registered file or direct FD, rather than a
     /// normal file descriptor.
     pub fn set_fixed_file(self) -> Self {
@@ -120,7 +120,7 @@ impl Sqe<'_> {
         t.__pad2[0] = 0;
     }
 
-    /// Prepare an accept requrest in the given SQE.
+    /// Prepare an accept request in the given SQE.
     ///
     /// # Safety
     /// We do not validate the `addr` and `len` fields,
@@ -176,7 +176,7 @@ impl Sqe<'_> {
         sqe.__bindgen_anon_3.splice_flags = flags;
         sqe.__bindgen_anon_5.splice_fd_in = fd_in;
         sqe.__bindgen_anon_2.splice_off_in = off_in as u64;
-        self 
+        self
     }
 
     pub fn io_uring_prep_tee(self, fd_in: RawFd, fd_out: RawFd, nbytes: u32, flags: u32) -> Self {
@@ -188,9 +188,189 @@ impl Sqe<'_> {
         self
     }
 
+    pub fn io_uring_prep_nop(self) -> Self {
+        let sqe = unsafe { &mut (*self.sqe) };
+        unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_NOP, -1, 0, 0, 0) };
+        self
+    }
+
+    /// Prepare a readv operation.
+    ///
+    /// # Safety
+    /// `iovecs` must be a valid pointer to an array with at least `nr_vec` io_vecs, and must
+    /// cannot be moved or freed until the operation has completed.
+    pub unsafe fn io_uring_prep_readv(
+        self,
+        fd: RawFd,
+        iovecs: *const libc::iovec,
+        nr_vecs: u32,
+        offset: u64,
+    ) -> Self {
+        let sqe = &mut (*self.sqe);
+        Self::io_uring_prep_rw(sqe, IORING_OP_READV, fd, iovecs as usize, nr_vecs, offset);
+        self
+    }
+
+    /// Prepare a readv operation.
+    ///
+    /// # Safety
+    /// `iovecs` must be a valid pointer to an array with at least `nr_vec` io_vecs, and must
+    /// cannot be moved or freed until the operation has completed.
+    pub unsafe fn io_uring_prep_readv2(
+        self,
+        fd: RawFd,
+        iovecs: *const libc::iovec,
+        nr_vecs: u32,
+        offset: u64,
+        flags: i32,
+    ) -> Self {
+        let s = self.io_uring_prep_readv(fd, iovecs, nr_vecs, offset);
+        (*s.sqe).__bindgen_anon_3.rw_flags = flags;
+        s
+    }
+
+    /// Prepare a read operation that uses a fixed buffer.
+    /// The space pointed to by `buf` must have been registered
+    /// at index `buf_index`. `buf` need not point to the start of
+    /// the registed buffer, it merely needs to be within the registered
+    /// region.
+    ///
+    /// # Safety
+    /// `buf` must have been previously registered at `buf_index`.
+    pub unsafe fn io_uring_prep_read_fixed<T>(
+        self,
+        fd: RawFd,
+        buf: NonNull<T>,
+        nbytes: usize,
+        offset: u64,
+        buf_index: u16,
+    ) -> Self {
+        let sqe = &mut (*self.sqe);
+        Self::io_uring_prep_rw(
+            sqe,
+            IORING_OP_READ_FIXED,
+            fd,
+            buf.addr().get(),
+            nbytes as u32,
+            offset,
+        );
+        (*sqe).__bindgen_anon_4.buf_index = buf_index as u16;
+        self
+    }
+
+    /// Prepare a writev operation.
+    ///
+    /// # Safety
+    /// `iovecs` must be a valid pointer to an array with at least `nr_vec` io_vecs, and must
+    /// cannot be moved or freed until the operation has completed.
+    pub unsafe fn io_uring_prep_writev(
+        self,
+        fd: RawFd,
+        iovecs: *const libc::iovec,
+        nr_vecs: u32,
+        offset: u64,
+    ) -> Self {
+        let sqe = &mut (*self.sqe);
+        Self::io_uring_prep_rw(sqe, IORING_OP_WRITEV, fd, iovecs as usize, nr_vecs, offset);
+        self
+    }
+
+    /// Prepare a writev operation.
+    ///
+    /// # Safety
+    /// `iovecs` must be a valid pointer to an array with at least `nr_vec` io_vecs, and must
+    /// cannot be moved or freed until the operation has completed.
+    pub unsafe fn io_uring_prep_writev2(
+        self,
+        fd: RawFd,
+        iovecs: *const libc::iovec,
+        nr_vecs: u32,
+        offset: u64,
+        flags: i32,
+    ) -> Self {
+        let s = self.io_uring_prep_writev(fd, iovecs, nr_vecs, offset);
+        (*s.sqe).__bindgen_anon_3.rw_flags = flags;
+        s
+    }
+
+    /// Prepare a write operation that uses a fixed buffer.
+    /// The space pointed to by `buf` must have been registered
+    /// at index `buf_index`. `buf` need not point to the start of
+    /// the registed buffer, it merely needs to be within the registered
+    /// region.
+    ///
+    /// # Safety
+    /// `buf` must have been previously registered at `buf_index`.
+    pub unsafe fn io_uring_prep_write_fixed<T>(
+        self,
+        fd: RawFd,
+        buf: NonNull<T>,
+        nbytes: usize,
+        offset: u64,
+        buf_index: u16,
+    ) -> Self {
+        let sqe = &mut (*self.sqe);
+        Self::io_uring_prep_rw(
+            sqe,
+            IORING_OP_WRITE_FIXED,
+            fd,
+            buf.addr().get(),
+            nbytes as u32,
+            offset,
+        );
+        (*sqe).__bindgen_anon_4.buf_index = buf_index as u16;
+        self
+    }
+
+    /// Post a `recvmsg` request.
+    ///
+    /// # Safety
+    /// `msg` must remain valid until the request has completed.
+    pub unsafe fn io_uring_prep_recvmsg(
+        self,
+        fd: RawFd,
+        msg: NonNull<libc::msghdr>,
+        flags: u32,
+    ) -> Self {
+        let sqe = &mut (*self.sqe);
+        Self::io_uring_prep_rw(sqe, IORING_OP_RECVMSG, fd, msg.addr().get(), 1, 0);
+        sqe.__bindgen_anon_3.msg_flags = flags;
+        self
+    }
+
+    /// Post a multishot `recvmsg` request.
+    /// 
+    /// # Safety
+    /// `msg` must remain valid until the request has completed. 
+    pub unsafe fn io_uring_prep_recvmsg_multishot(
+        self,
+        fd: RawFd,
+        msg: NonNull<libc::msghdr>,
+        flags: u32,
+    ) -> Self {
+        let s = self.io_uring_prep_recvmsg(fd, msg, flags);
+        (*s.sqe).ioprio |= IORING_ACCEPT_MULTISHOT as u16;
+        s
+    }
+
+    /// Post a `sendmsg` request.
+    ///
+    /// # Safety
+    /// `msg` must remain valid until the request has completed.
+    pub unsafe fn io_uring_prep_sendmsg(
+        self,
+        fd: RawFd,
+        msg: NonNull<libc::msghdr>,
+        flags: u32,
+    ) -> Self {
+        let sqe = &mut (*self.sqe);
+        Self::io_uring_prep_rw(sqe, IORING_OP_SENDMSG, fd, msg.addr().get(), 1, 0);
+        sqe.__bindgen_anon_3.msg_flags = flags;
+        self
+    }
+
     /// Indicate that we are done with the SQE.
     pub fn finalize(self) {
         drop(self);
     }
-
 }
