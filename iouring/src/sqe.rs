@@ -15,7 +15,23 @@ impl Sqe<'_> {
             _phantom: Default::default(),
         }
     }
-    fn io_uring_prep_rw(
+
+    /// Get raw SQE pointer.
+    ///
+    /// # Safety
+    /// The IoUring must remain valid if the SQE is used.
+    /// Otherwise an illegal memory access is likely.
+    pub unsafe fn get_sqe(&self) -> *mut io_uring_sqe {
+        self.sqe
+    }
+
+    /// Initialize a SQE. This is only available
+    /// to work around all the missing elements.
+    ///
+    /// # Safety
+    /// We don't check where the `sqe` comes from,
+    /// and might thus be unsafe.
+    pub unsafe fn io_uring_prep_rw(
         sqe: &mut io_uring_sqe,
         op: io_uring_op,
         fd: i32,
@@ -34,7 +50,7 @@ impl Sqe<'_> {
         sqe.__bindgen_anon_4.buf_index = 0;
         sqe.personality = 0;
         sqe.__bindgen_anon_5.file_index = 0;
-        let t = unsafe { sqe.__bindgen_anon_6.__bindgen_anon_1.as_mut() };
+        let t = sqe.__bindgen_anon_6.__bindgen_anon_1.as_mut();
         t.addr3 = 0;
         t.__pad2[0] = 0;
     }
@@ -52,7 +68,7 @@ impl Sqe<'_> {
         flags: u32,
     ) {
         let sqe = unsafe { &mut (*self.sqe) };
-        Self::io_uring_prep_rw(sqe, IORING_OP_ACCEPT, fd, addr as usize, 0, len as u64);
+        unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_ACCEPT, fd, addr as usize, 0, len as u64) };
         sqe.__bindgen_anon_3.accept_flags = flags;
     }
 
@@ -64,7 +80,7 @@ impl Sqe<'_> {
         flags: u32,
     ) {
         let sqe = unsafe { &mut (*self.sqe) };
-        Self::io_uring_prep_rw(sqe, IORING_OP_ACCEPT, fd, addr as usize, 0, len as u64);
+        unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_ACCEPT, fd, addr as usize, 0, len as u64) };
         sqe.__bindgen_anon_3.accept_flags = flags;
         sqe.ioprio |= IORING_ACCEPT_MULTISHOT as u16;
     }
@@ -90,7 +106,7 @@ impl Sqe<'_> {
         flags: u32,
     ) {
         let sqe = unsafe { &mut (*self.sqe) };
-        Self::io_uring_prep_rw(sqe, IORING_OP_SPLICE, fd_out, 0, nbytes, off_out as u64);
+        unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_SPLICE, fd_out, 0, nbytes, off_out as u64) };
         sqe.__bindgen_anon_3.splice_flags = flags;
         sqe.__bindgen_anon_5.splice_fd_in = fd_in;
         sqe.__bindgen_anon_2.splice_off_in = off_in as u64;
@@ -98,7 +114,7 @@ impl Sqe<'_> {
 
     pub fn io_uring_prep_tee(self, fd_in: RawFd, fd_out: RawFd, nbytes: u32, flags: u32) {
         let sqe = unsafe { &mut (*self.sqe) };
-        Self::io_uring_prep_rw(sqe, IORING_OP_TEE, fd_out, 0, nbytes, 0);
+        unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_TEE, fd_out, 0, nbytes, 0) };
         sqe.__bindgen_anon_2.splice_off_in = 0;
         sqe.__bindgen_anon_5.splice_fd_in = fd_in;
         sqe.__bindgen_anon_3.splice_flags = flags;
