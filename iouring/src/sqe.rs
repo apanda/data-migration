@@ -369,6 +369,14 @@ impl Sqe<'_> {
         self
     }
 
+    /// Prepare fsync.
+    pub fn io_uring_prep_fsync(self, fd: RawFd, fsync_flag: u32) -> Self {
+        let sqe = unsafe  { &mut (*self.sqe) };
+        unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_FSYNC, fd, 0, 0, 0) };
+        sqe.__bindgen_anon_3.fsync_flags = fsync_flag;
+        self
+    }
+
     /// Indicate that we are done with the SQE.
     pub fn finalize(self) {
         drop(self);
