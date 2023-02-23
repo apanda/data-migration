@@ -254,7 +254,7 @@ impl Sqe<'_> {
             nbytes as u32,
             offset,
         );
-        (*sqe).__bindgen_anon_4.buf_index = buf_index as u16;
+        (*sqe).__bindgen_anon_4.buf_index = buf_index;
         self
     }
 
@@ -339,9 +339,9 @@ impl Sqe<'_> {
     }
 
     /// Post a multishot `recvmsg` request.
-    /// 
+    ///
     /// # Safety
-    /// `msg` must remain valid until the request has completed. 
+    /// `msg` must remain valid until the request has completed.
     pub unsafe fn io_uring_prep_recvmsg_multishot(
         self,
         fd: RawFd,
@@ -371,14 +371,86 @@ impl Sqe<'_> {
 
     /// Prepare fsync.
     pub fn io_uring_prep_fsync(self, fd: RawFd, fsync_flag: u32) -> Self {
-        let sqe = unsafe  { &mut (*self.sqe) };
+        let sqe = unsafe { &mut (*self.sqe) };
         unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_FSYNC, fd, 0, 0, 0) };
         sqe.__bindgen_anon_3.fsync_flags = fsync_flag;
         self
     }
 
+    // Missing prep_timeout, prep_timeout_remove, prep_timeout_update
+
+    /// Cancel SQE identified by `user_data`
+    pub fn io_uring_prep_cancel(self, user_data: u64, flags: u32) -> Self {
+        let sqe = unsafe { &mut (*self.sqe) };
+        unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_ASYNC_CANCEL, -1, 0, 0, 0) };
+        sqe.__bindgen_anon_2.addr = user_data;
+        sqe.__bindgen_anon_3.cancel_flags = flags;
+        self
+    }
+
+    // Missing prep_link_timeout, which allows a linked operation to be cancelled.
+    pub fn io_uring_prep_connect(
+        self,
+        fd: RawFd,
+        addr: *const libc::sockaddr,
+        addrlen: libc::socklen_t,
+    ) -> Self {
+        let sqe = unsafe { &mut (*self.sqe) };
+        unsafe {
+            Self::io_uring_prep_rw(sqe, IORING_OP_CONNECT, fd, addr as usize, 0, addrlen as u64)
+        };
+        self
+    }
+
+    // Missing prep_file_updates
+    // Missing prep_fallocate, openat, openat_direct, close, close_direct
+
+    /// Prepare read from `fd` into `buf` starting at `offset`.
+    ///
+    /// # Safety
+    /// `buf` must have at least `nbytes`, and must remain valid until the operation
+    /// completes.
+    pub unsafe fn io_uring_prep_read(
+        self,
+        fd: RawFd,
+        buf: *mut u8,
+        nbytes: usize,
+        offset: u64,
+    ) -> Self {
+        let sqe = unsafe { &mut (*self.sqe) };
+        unsafe {
+            Self::io_uring_prep_rw(sqe, IORING_OP_READ, fd, buf as usize, nbytes as u32, offset)
+        };
+        self
+    }
+
+    /// Prepare write into `fd` from `buf`, starting at `offset`.
+    ///
+    /// # Safety
+    /// `buf` must have at least `nbytes`, and must remain valid until the
+    /// operation completes
+    pub unsafe fn io_uring_prep_write(
+        self,
+        fd: RawFd,
+        buf: *mut u8,
+        nbytes: usize,
+        offset: u64,
+    ) -> Self {
+        let sqe = unsafe { &mut (*self.sqe) };
+        unsafe {
+            Self::io_uring_prep_rw(
+                sqe,
+                IORING_OP_WRITE,
+                fd,
+                buf as usize,
+                nbytes as u32,
+                offset,
+            )
+        };
+        self
+    }
+
     /// Indicate that we are done with the SQE.
     pub fn finalize(self) {
-        drop(self);
     }
 }
