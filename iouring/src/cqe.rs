@@ -2,6 +2,14 @@ use std::marker::PhantomData;
 
 use super::*;
 
+
+impl io_uring_cqe {
+    /// For multishot operations, should more CQEs be expected.
+    pub fn expect_more_notifications(&self) -> bool {
+        self.flags & IORING_CQE_F_MORE != 0
+    }
+}
+
 #[inline(always)]
 unsafe fn io_uring_cq_advance(ring: &mut io_uring, nr: u32) {
     if nr > 0 {

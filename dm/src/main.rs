@@ -23,6 +23,7 @@ fn main() -> std::io::Result<()> {
         get_cqe_data(cqes.peek(0).unwrap()),
         get_cqe_data(cqes.peek(1).unwrap())
     );
+    assert!(cqes.peek(0).unwrap().expect_more_notifications());
     drop(cqes);
     println!(
         "After drop: CQEs {} SQEs R {} SQEs A {}",
