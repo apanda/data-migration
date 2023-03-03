@@ -8,6 +8,14 @@ impl io_uring_cqe {
     pub fn expect_more_notifications(&self) -> bool {
         self.flags & IORING_CQE_F_MORE != 0
     }
+    /// Returns user data from `cqe`.
+    pub fn get_cqe_data(&self) -> u64 {
+        self.user_data
+    }
+
+    pub fn get_result(&self) -> i32 {
+        self.res
+    }
 }
 
 #[inline(always)]
@@ -181,7 +189,3 @@ pub fn io_uring_wait_cqe(ring: &mut IoUring) -> Result<Option<CqeJar>, std::io::
     io_uring_wait_cqe_nr(ring, 1)
 }
 
-/// Returns user data from `cqe`.
-pub fn get_cqe_data(cqe: &io_uring_cqe) -> u64 {
-    cqe.user_data
-}

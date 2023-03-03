@@ -532,6 +532,7 @@ impl Sqe<'_> {
         self
     }
 
+    /// Prepare a multishot receive.
     pub fn io_uring_prep_recv_multishot(self, fd: RawFd, group_id: u16, flags: u32) -> Self {
         let s = unsafe { self.io_uring_prep_recv::<u8>(fd, std::ptr::null_mut(), 0, flags) };
         s.set_multishot().set_buffer_select(group_id)

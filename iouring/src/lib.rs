@@ -15,6 +15,8 @@ mod cqe;
 pub use cqe::*;
 mod sqe;
 pub use sqe::*;
+mod buf_ring;
+pub use buf_ring::*;
 
 /// An IoUring structure, mostly so we can tell the
 /// Rust type system a bit more about our constraints.
