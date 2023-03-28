@@ -79,8 +79,10 @@ impl Sqe<'_> {
 
     /// Use a buffer group for this SQE if available.
     pub fn set_buffer_select(self, group: u16) -> Self {
-        unsafe { (*(self.sqe)).flags |= 1u8 << IOSQE_BUFFER_SELECT_BIT;
-        (*(self.sqe)).__bindgen_anon_4.buf_group = group };
+        unsafe {
+            (*(self.sqe)).flags |= 1u8 << IOSQE_BUFFER_SELECT_BIT;
+            (*(self.sqe)).__bindgen_anon_4.buf_group = group
+        };
         self
     }
 
@@ -152,7 +154,8 @@ impl Sqe<'_> {
         len: *mut libc::socklen_t,
         flags: u32,
     ) -> Self {
-        self.io_uring_prep_accept(fd, addr, len, flags).set_multishot()
+        self.io_uring_prep_accept(fd, addr, len, flags)
+            .set_multishot()
     }
 
     /// Prepare a splice command. Either `fd_in` or `fd_out` must be a pipe.
@@ -476,26 +479,38 @@ impl Sqe<'_> {
     // Missin statx, fadvise, madvise
 
     /// Prepare a send
-    /// 
+    ///
     /// # Safety
     /// `buf` must be `len` bytes, and must remain valid until
     /// completion.
-    pub unsafe fn io_uring_prep_send<T>(self, fd: RawFd, buf: *const T, len: usize, flags: u32) -> Self {
+    pub unsafe fn io_uring_prep_send<T>(
+        self,
+        fd: RawFd,
+        buf: *const T,
+        len: usize,
+        flags: u32,
+    ) -> Self {
         let sqe = unsafe { &mut (*self.sqe) };
         unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_SEND, fd, buf as usize, len as u32, 0) };
         sqe.__bindgen_anon_3.msg_flags = flags;
         self
     }
-    
+
     /// Prepare a zero-copy (actually minimal copy) send.
     /// Note that in this case one might receive multiple CQEs for the
     /// same request (with `expect_more_notifications` set to true), and
     /// the call cannot be considered complete until the final CQE.
-    /// 
+    ///
     /// # Safety
     /// `buf` must be `len` bytes, and must remain valid until
     /// completion, i.e., until a CQE with .
-    pub unsafe fn io_uring_prep_send_zc<T>(self, fd: RawFd, buf: *const T, len: usize, flags: u32) -> Self {
+    pub unsafe fn io_uring_prep_send_zc<T>(
+        self,
+        fd: RawFd,
+        buf: *const T,
+        len: usize,
+        flags: u32,
+    ) -> Self {
         let sqe = unsafe { &mut (*self.sqe) };
         unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_SEND_ZC, fd, buf as usize, len as u32, 0) };
         sqe.__bindgen_anon_3.msg_flags = flags;
@@ -513,19 +528,33 @@ impl Sqe<'_> {
     /// Note that in this case one might receive multiple CQEs for the
     /// same request (with `expect_more_notifications` set to true), and
     /// the call cannot be considered complete until the final CQE.
-    /// 
+    ///
     /// # Safety
     /// `buf` must be `len` bytes, and must have been previously registered
-    /// at the given `buf_index` using `io_uring_register_buffers`. 
-    pub unsafe fn io_uring_prep_send_zc_fixed<T>(self, fd: RawFd, buf: *const T, len: usize, flags: u32, buf_index: u16) -> Self {
-        self.io_uring_prep_send_zc(fd, buf, len, flags).set_fixed_buf(buf_index)
+    /// at the given `buf_index` using `io_uring_register_buffers`.
+    pub unsafe fn io_uring_prep_send_zc_fixed<T>(
+        self,
+        fd: RawFd,
+        buf: *const T,
+        len: usize,
+        flags: u32,
+        buf_index: u16,
+    ) -> Self {
+        self.io_uring_prep_send_zc(fd, buf, len, flags)
+            .set_fixed_buf(buf_index)
     }
 
     /// Prepare a receive. Data is received in `buf`.
-    /// 
+    ///
     /// # Safety
     /// `buf` must be at least `len` bytes in size, and must remain valid.
-    pub unsafe fn io_uring_prep_recv<T>(self, fd: RawFd, buf: *mut T, len: usize, flags: u32) -> Self {
+    pub unsafe fn io_uring_prep_recv<T>(
+        self,
+        fd: RawFd,
+        buf: *mut T,
+        len: usize,
+        flags: u32,
+    ) -> Self {
         let sqe = unsafe { &mut (*self.sqe) };
         unsafe { Self::io_uring_prep_rw(sqe, IORING_OP_RECV, fd, buf as usize, len as u32, 0) };
         sqe.__bindgen_anon_3.msg_flags = flags;
@@ -538,6 +567,5 @@ impl Sqe<'_> {
         s.set_multishot().set_buffer_select(group_id)
     }
     /// Indicate that we are done with the SQE.
-    pub fn finalize(self) {
-    }
+    pub fn finalize(self) {}
 }

@@ -1,17 +1,17 @@
 use iou::*;
 use libiouring as iou;
+use std::alloc::{alloc, Layout};
 use std::mem::size_of;
 use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
 use std::ptr::null_mut;
-use std::alloc::{alloc, Layout};
 fn main() -> std::io::Result<()> {
     const QDEPTH: u32 = 32;
     let connect = TcpListener::bind("127.0.0.1:8989")?;
     let cfd = connect.as_raw_fd();
     let mut ring = IoUring::init(QDEPTH as isize);
     const BUFS: usize = 64;
-    let mut br = BufRing::init_with_group_id(&mut ring, 0xf, BUFS as u32);
+    let mut br = BufRing::init_with_group_id(&mut ring, 0xf, BUFS as u32, 1024).unwrap();
     // Initialize io_uring, set things when necessary.
     let entry = ring.io_uring_get_sqe().unwrap();
     entry
@@ -29,7 +29,7 @@ fn main() -> std::io::Result<()> {
             c.get_cqe_data(),
             c.get_result()
         );
-    };
+    }
     drop(cqes);
     println!(
         "After drop: CQEs {} SQEs R {} SQEs A {}",

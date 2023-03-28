@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use super::*;
 
-
 impl io_uring_cqe {
     /// For multishot operations, should more CQEs be expected.
     pub fn expect_more_notifications(&self) -> bool {
@@ -188,4 +187,3 @@ pub fn io_uring_wait_cqe_nr<'a>(
 pub fn io_uring_wait_cqe(ring: &mut IoUring) -> Result<Option<CqeJar>, std::io::Error> {
     io_uring_wait_cqe_nr(ring, 1)
 }
-
